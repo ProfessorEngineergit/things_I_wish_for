@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wünsche verwalten – Bahrian Novotny</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    /* X-icon for modal close button */
+    .x-icon { font-size: 1.1rem; line-height: 1; }
+  </style>
+</head>
+<body>
+
+  <!-- ── Navigation ─────────────────────────────────────── -->
+  <nav>
+    <a href="index.html" class="brand">← Zurück</a>
+    <div class="nav-actions">
+      <span id="nav-user" style="font-size:.85rem; color:var(--text-muted);"></span>
+      <button id="btn-add" class="btn btn-primary" style="display:none;">+ Wunsch hinzufügen</button>
+      <button id="btn-signout">Abmelden</button>
+    </div>
+  </nav>
+
+  <!-- ── Auth guard overlay ─────────────────────────────── -->
+  <div id="auth-loading" class="loading-row" style="margin-top:80px;">
+    <span class="spinner"></span> Authentifizierung …
+  </div>
+
+  <!-- ── Page (hidden until auth confirmed) ─────────────── -->
+  <div class="page-wrapper" id="admin-content" style="display:none;">
+
+    <section style="margin-top:36px;">
+      <h2>🎁 Meine Wünsche</h2>
+
+      <div id="wish-loading" class="loading-row">
+        <span class="spinner"></span> Wünsche werden geladen …
+      </div>
+
+      <div id="wish-empty" class="empty-state" style="display:none;">
+        <div class="icon">✨</div>
+        Noch keine Wünsche. Füge deinen ersten hinzu!
+      </div>
+
+      <div class="admin-list" id="admin-list"></div>
+    </section>
+
+  </div><!-- /page-wrapper -->
+
+  <!-- ── Add / Edit Modal ───────────────────────────────── -->
+  <div class="modal-backdrop" id="modal-backdrop">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <button class="btn btn-icon modal-close" id="modal-close" title="Schließen">
+        <span class="x-icon">✕</span>
+      </button>
+      <h2 id="modal-title">Wunsch hinzufügen</h2>
+
+      <form id="wish-form" novalidate>
+        <input type="hidden" id="field-id" />
+
+        <div class="form-group">
+          <label for="field-name">Name *</label>
+          <input id="field-name" type="text" placeholder="z.B. Sony WH-1000XM5" required />
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="field-price">Preis</label>
+            <input id="field-price" type="text" placeholder="z.B. 299 €" />
+          </div>
+          <div class="form-group">
+            <label for="field-public" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+              <span>Öffentlich</span>
+            </label>
+            <div style="display:flex;align-items:center;gap:10px;padding-top:6px;">
+              <button type="button" class="toggle" id="field-public" aria-pressed="false"></button>
+              <span id="public-label" style="font-size:.85rem;color:var(--text-muted);">Privat</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="field-link">Link (URL)</label>
+          <input id="field-link" type="url" placeholder="https://…" />
+        </div>
+
+        <div class="form-group">
+          <label for="field-image">Bild-URL</label>
+          <input id="field-image" type="url" placeholder="https://…/image.jpg" />
+        </div>
+
+        <div class="form-group">
+          <label for="field-desc">Beschreibung</label>
+          <textarea id="field-desc" placeholder="Kurze Beschreibung…"></textarea>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="btn" id="modal-cancel">Abbrechen</button>
+          <button type="submit" class="btn btn-primary" id="modal-submit">Speichern</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── Delete Confirm Modal ───────────────────────────── -->
+  <div class="modal-backdrop" id="delete-backdrop">
+    <div class="modal" role="dialog" aria-modal="true" style="max-width:380px;">
+      <h2 style="margin-bottom:14px;">Wunsch löschen?</h2>
+      <p style="color:var(--text-muted); margin-bottom:28px; font-size:.95rem;">
+        Dieser Wunsch wird unwiderruflich gelöscht.
+      </p>
+      <div class="form-actions">
+        <button class="btn" id="delete-cancel">Abbrechen</button>
+        <button class="btn btn-danger" id="delete-confirm">Löschen</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- ── Firebase (compat SDK v10) ──────────────────────── -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script src="firebase-config.js"></script>
+
+  <script>
+    // ── State ─────────────────────────────────────────────
+    let wishes = [];      // local cache
+    let editingId = null; // id of wish being edited
+    let deletingId = null;
+
+    // ── Auth Guard ────────────────────────────────────────
+    auth.onAuthStateChanged(user => {
+      const loader  = document.getElementById('auth-loading');
+      const content = document.getElementById('admin-content');
+      const btnAdd  = document.getElementById('btn-add');
+      const navUser = document.getElementById('nav-user');
+
+      if (!user) {
+        // Not signed in → redirect to public page
+        window.location.href = 'index.html';
+        return;
+      }
+
+      loader.style.display  = 'none';
+      content.style.display = '';
+      btnAdd.style.display  = '';
+      navUser.textContent   = user.displayName || user.email;
+
+      loadWishes();
+    });
+
+    // ── Sign-Out ──────────────────────────────────────────
+    document.getElementById('btn-signout').addEventListener('click', () => {
+      auth.signOut().then(() => { window.location.href = 'index.html'; });
+    });
+
+    // ── Load all wishes ───────────────────────────────────
+    function loadWishes() {
+      const loadingEl = document.getElementById('wish-loading');
+      const emptyEl   = document.getElementById('wish-empty');
+      const listEl    = document.getElementById('admin-list');
+
+      loadingEl.style.display = '';
+      emptyEl.style.display   = 'none';
+      listEl.innerHTML        = '';
+
+      db.collection('wishes')
+        .orderBy('createdAt', 'desc')
+        .get()
+        .then(snapshot => {
+          loadingEl.style.display = 'none';
+          wishes = [];
+          snapshot.forEach(doc => wishes.push({ id: doc.id, ...doc.data() }));
+
+          if (wishes.length === 0) { emptyEl.style.display = ''; return; }
+          wishes.forEach(w => listEl.appendChild(renderAdminRow(w)));
+        })
+        .catch(err => {
+          loadingEl.style.display = 'none';
+          showToast('Fehler: ' + err.message, 'error');
+        });
+    }
+
+    // ── Render admin row ──────────────────────────────────
+    function renderAdminRow(w) {
+      const row = document.createElement('div');
+      row.className = 'admin-wish-row';
+      row.dataset.id = w.id;
+
+      const thumb = w.imageUrl
+        ? `<div class="thumb"><img src="${escHtml(w.imageUrl)}" alt="" /></div>`
+        : `<div class="thumb">🎁</div>`;
+
+      row.innerHTML = `
+        ${thumb}
+        <div class="info">
+          <h4>${escHtml(w.name)}</h4>
+          <span>${w.price ? escHtml(w.price) + ' · ' : ''}${w.isPublic ? 'Öffentlich' : 'Privat'}</span>
+        </div>
+        <div class="actions">
+          <button
+            class="btn btn-icon toggle ${w.isPublic ? 'on' : ''}"
+            data-action="toggle"
+            title="${w.isPublic ? 'Auf Privat stellen' : 'Veröffentlichen'}"
+            aria-pressed="${w.isPublic}"
+          ></button>
+          <span class="badge ${w.isPublic ? 'badge-public' : 'badge-private'}">
+            ${w.isPublic ? 'Öffentlich' : 'Privat'}
+          </span>
+          <button class="btn btn-icon" data-action="edit" title="Bearbeiten">✏️</button>
+          <button class="btn btn-icon btn-danger" data-action="delete" title="Löschen">🗑️</button>
+        </div>`;
+
+      // Delegate click events
+      row.addEventListener('click', e => {
+        const btn = e.target.closest('[data-action]');
+        if (!btn) return;
+        const action = btn.dataset.action;
+        const id = row.dataset.id;
+        if (action === 'toggle') togglePublic(id, w);
+        if (action === 'edit')   openEditModal(id);
+        if (action === 'delete') openDeleteModal(id);
+      });
+
+      return row;
+    }
+
+    // ── Toggle public ─────────────────────────────────────
+    function togglePublic(id, wishData) {
+      const newVal = !wishData.isPublic;
+      db.collection('wishes').doc(id).update({ isPublic: newVal })
+        .then(() => {
+          showToast(newVal ? 'Wunsch veröffentlicht.' : 'Wunsch auf Privat gesetzt.', 'success');
+          loadWishes();
+        })
+        .catch(err => showToast('Fehler: ' + err.message, 'error'));
+    }
+
+    // ── Add / Edit modal ──────────────────────────────────
+    document.getElementById('btn-add').addEventListener('click', () => openAddModal());
+
+    function openAddModal() {
+      editingId = null;
+      resetForm();
+      document.getElementById('modal-title').textContent = 'Wunsch hinzufügen';
+      document.getElementById('modal-submit').textContent = 'Hinzufügen';
+      openModal('modal-backdrop');
+    }
+
+    function openEditModal(id) {
+      const w = wishes.find(x => x.id === id);
+      if (!w) return;
+      editingId = id;
+      document.getElementById('field-id').value    = id;
+      document.getElementById('field-name').value  = w.name  || '';
+      document.getElementById('field-price').value = w.price || '';
+      document.getElementById('field-link').value  = w.link  || '';
+      document.getElementById('field-image').value = w.imageUrl || '';
+      document.getElementById('field-desc').value  = w.description || '';
+      setPublicToggle(!!w.isPublic);
+      document.getElementById('modal-title').textContent  = 'Wunsch bearbeiten';
+      document.getElementById('modal-submit').textContent = 'Speichern';
+      openModal('modal-backdrop');
+    }
+
+    // ── Form submit ───────────────────────────────────────
+    document.getElementById('wish-form').addEventListener('submit', async e => {
+      e.preventDefault();
+      const name = document.getElementById('field-name').value.trim();
+      if (!name) { showToast('Bitte einen Namen eingeben.', 'error'); return; }
+
+      const data = {
+        name,
+        price:       document.getElementById('field-price').value.trim(),
+        link:        document.getElementById('field-link').value.trim(),
+        imageUrl:    document.getElementById('field-image').value.trim(),
+        description: document.getElementById('field-desc').value.trim(),
+        isPublic:    document.getElementById('field-public').classList.contains('on'),
+      };
+
+      const btn = document.getElementById('modal-submit');
+      btn.disabled = true;
+
+      try {
+        if (editingId) {
+          await db.collection('wishes').doc(editingId).update(data);
+          showToast('Wunsch aktualisiert.', 'success');
+        } else {
+          data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+          await db.collection('wishes').add(data);
+          showToast('Wunsch hinzugefügt.', 'success');
+        }
+        closeModal('modal-backdrop');
+        loadWishes();
+      } catch (err) {
+        showToast('Fehler: ' + err.message, 'error');
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    // ── Delete modal ──────────────────────────────────────
+    function openDeleteModal(id) {
+      deletingId = id;
+      openModal('delete-backdrop');
+    }
+
+    document.getElementById('delete-confirm').addEventListener('click', () => {
+      if (!deletingId) return;
+      db.collection('wishes').doc(deletingId).delete()
+        .then(() => {
+          showToast('Wunsch gelöscht.', 'success');
+          closeModal('delete-backdrop');
+          loadWishes();
+        })
+        .catch(err => showToast('Fehler: ' + err.message, 'error'));
+    });
+    document.getElementById('delete-cancel').addEventListener('click', () => closeModal('delete-backdrop'));
+
+    // ── Public toggle in form ─────────────────────────────
+    document.getElementById('field-public').addEventListener('click', () => {
+      const isOn = document.getElementById('field-public').classList.toggle('on');
+      document.getElementById('field-public').setAttribute('aria-pressed', String(isOn));
+      document.getElementById('public-label').textContent = isOn ? 'Öffentlich' : 'Privat';
+    });
+
+    function setPublicToggle(val) {
+      const btn = document.getElementById('field-public');
+      btn.classList.toggle('on', val);
+      btn.setAttribute('aria-pressed', String(val));
+      document.getElementById('public-label').textContent = val ? 'Öffentlich' : 'Privat';
+    }
+
+    // ── Modal helpers ─────────────────────────────────────
+    function openModal(id)  { document.getElementById(id).classList.add('open'); }
+    function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+    document.getElementById('modal-close').addEventListener('click',  () => closeModal('modal-backdrop'));
+    document.getElementById('modal-cancel').addEventListener('click', () => closeModal('modal-backdrop'));
+
+    // Close modal on backdrop click
+    ['modal-backdrop', 'delete-backdrop'].forEach(id => {
+      document.getElementById(id).addEventListener('click', e => {
+        if (e.target === document.getElementById(id)) closeModal(id);
+      });
+    });
+
+    function resetForm() {
+      document.getElementById('wish-form').reset();
+      document.getElementById('field-id').value = '';
+      setPublicToggle(false);
+    }
+
+    // ── Toast ─────────────────────────────────────────────
+    function showToast(msg, type = '') {
+      const t = document.createElement('div');
+      t.className = 'toast' + (type ? ' ' + type : '');
+      t.textContent = msg;
+      document.getElementById('toast-container').appendChild(t);
+      setTimeout(() => t.remove(), 4000);
+    }
+
+    // ── Escape HTML ───────────────────────────────────────
+    function escHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+  </script>
+</body>
+</html>

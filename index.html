@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wunschliste – Bahrian Novotny</title>
+  <meta name="description" content="Die öffentliche Wunschliste von Bahrian Novotny." />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ── Navigation ─────────────────────────────────────── -->
+  <nav>
+    <a href="index.html" class="brand">✦ Wunschliste</a>
+    <div class="nav-actions">
+      <!-- shown when NOT signed in -->
+      <button id="btn-signin" class="btn btn-google" style="display:none;">
+        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google logo" />
+        Anmelden
+      </button>
+      <!-- shown when signed in -->
+      <span id="nav-user" style="display:none; font-size:.85rem; color:var(--text-muted);"></span>
+      <a id="btn-admin" href="admin.html" class="btn btn-primary" style="display:none;">Verwalten</a>
+      <button id="btn-signout" style="display:none;">Abmelden</button>
+    </div>
+  </nav>
+
+  <!-- ── Page ───────────────────────────────────────────── -->
+  <div class="page-wrapper">
+
+    <!-- Hero -->
+    <div class="hero">
+      <h1>Bahrian&nbsp;Novotny</h1>
+      <p>
+        Developer, Tüftler &amp; Kreativkopf.<br />
+        Hier findest du meine aktuelle Wunschliste – kuratiert und stets aktuell.
+      </p>
+      <div class="hero-actions">
+        <a
+          href="https://professorengineergit.github.io/Bahrian_Novotny_My_Universe/"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="btn btn-primary"
+        >
+          🚀 Portfolio besuchen
+        </a>
+        <a
+          href="https://github.com/ProfessorEngineergit"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="btn"
+        >
+          GitHub
+        </a>
+      </div>
+    </div>
+
+    <!-- About -->
+    <section>
+      <div class="card">
+        <h2 style="border:none; margin-bottom:16px; padding-bottom:0;">Über mich</h2>
+        <p style="color:var(--text-muted); margin-bottom:12px;">
+          Ich bin Bahrian Novotny – Entwickler mit einer Leidenschaft für schöne Interfaces,
+          hardwarenahe Projekte und 3D-Welten. In meinem Portfolio kannst du all meine Projekte
+          entdecken: von Web-Apps und Robotik bis hin zu Space-Simulationen.
+        </p>
+        <a
+          href="https://professorengineergit.github.io/Bahrian_Novotny_My_Universe/"
+          target="_blank"
+          rel="noopener noreferrer"
+          style="color:var(--accent); font-size:.9rem; text-decoration:none;"
+        >
+          → Zum Portfolio-Universum ✦
+        </a>
+      </div>
+    </section>
+
+    <!-- Wishlist -->
+    <section>
+      <h2>🎁 Meine Wünsche</h2>
+
+      <div id="wish-loading" class="loading-row">
+        <span class="spinner"></span> Wünsche werden geladen …
+      </div>
+
+      <div id="wish-empty" class="empty-state" style="display:none;">
+        <div class="icon">🎀</div>
+        Noch keine öffentlichen Wünsche vorhanden.
+      </div>
+
+      <div id="wish-grid" class="wish-grid"></div>
+    </section>
+
+    <hr />
+
+    <p style="text-align:center; color:var(--text-muted); font-size:.82rem;">
+      &copy; <span id="year"></span> Bahrian Novotny ·
+      <a href="https://github.com/ProfessorEngineergit/things_I_wish_for" target="_blank"
+         rel="noopener noreferrer" style="color:var(--text-muted);">GitHub</a>
+    </p>
+
+  </div><!-- /page-wrapper -->
+
+  <!-- Toast container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- ── Firebase (compat SDK v10) ──────────────────────── -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script src="firebase-config.js"></script>
+
+  <script>
+    // ── Year ──────────────────────────────────────────────
+    document.getElementById('year').textContent = new Date().getFullYear();
+
+    // ── Auth state ────────────────────────────────────────
+    auth.onAuthStateChanged(user => {
+      const btnSignin  = document.getElementById('btn-signin');
+      const btnSignout = document.getElementById('btn-signout');
+      const btnAdmin   = document.getElementById('btn-admin');
+      const navUser    = document.getElementById('nav-user');
+
+      if (user) {
+        btnSignin.style.display  = 'none';
+        btnSignout.style.display = '';
+        btnAdmin.style.display   = '';
+        navUser.style.display    = '';
+        navUser.textContent      = user.displayName || user.email;
+      } else {
+        btnSignin.style.display  = '';
+        btnSignout.style.display = 'none';
+        btnAdmin.style.display   = 'none';
+        navUser.style.display    = 'none';
+      }
+    });
+
+    // ── Sign-In ───────────────────────────────────────────
+    document.getElementById('btn-signin').addEventListener('click', () => {
+      const provider = new firebase.auth.GoogleAuthProvider();
+      auth.signInWithPopup(provider)
+        .then(() => { window.location.href = 'admin.html'; })
+        .catch(err => showToast('Anmeldung fehlgeschlagen: ' + err.message, 'error'));
+    });
+
+    // ── Sign-Out ──────────────────────────────────────────
+    document.getElementById('btn-signout').addEventListener('click', () => {
+      auth.signOut();
+    });
+
+    // ── Load public wishes ────────────────────────────────
+    const grid    = document.getElementById('wish-grid');
+    const loading = document.getElementById('wish-loading');
+    const empty   = document.getElementById('wish-empty');
+
+    db.collection('wishes')
+      .where('isPublic', '==', true)
+      .orderBy('createdAt', 'desc')
+      .get()
+      .then(snapshot => {
+        loading.style.display = 'none';
+        if (snapshot.empty) { empty.style.display = ''; return; }
+        snapshot.forEach(doc => grid.appendChild(renderWish(doc.data())));
+      })
+      .catch(err => {
+        loading.style.display = 'none';
+        showToast('Fehler beim Laden: ' + err.message, 'error');
+        empty.style.display = '';
+      });
+
+    function renderWish(w) {
+      const card = document.createElement('div');
+      card.className = 'wish-card';
+
+      const media = w.imageUrl
+        ? `<img src="${escHtml(w.imageUrl)}" alt="${escHtml(w.name)}" loading="lazy" />`
+        : `<div class="wish-card-placeholder">🎁</div>`;
+
+      const price = w.price
+        ? `<div class="price">${escHtml(w.price)}</div>` : '';
+
+      const desc = w.description
+        ? `<div class="desc">${escHtml(w.description)}</div>` : '';
+
+      const link = w.link
+        ? `<a href="${escHtml(w.link)}" class="wish-link" target="_blank" rel="noopener noreferrer">
+             🔗 Zum Produkt
+           </a>` : '';
+
+      card.innerHTML = `
+        ${media}
+        <div class="wish-card-body">
+          <h3>${escHtml(w.name)}</h3>
+          ${price}
+          ${desc}
+          ${link}
+        </div>`;
+      return card;
+    }
+
+    // ── Toast ─────────────────────────────────────────────
+    function showToast(msg, type = '') {
+      const t = document.createElement('div');
+      t.className = 'toast' + (type ? ' ' + type : '');
+      t.textContent = msg;
+      document.getElementById('toast-container').appendChild(t);
+      setTimeout(() => t.remove(), 4000);
+    }
+
+    // ── Escape HTML ───────────────────────────────────────
+    function escHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+  </script>
+</body>
+</html>
