@@ -70,3 +70,7 @@ The site will be published at `https://professorengineergit.github.io/things_I_w
 | `firebase-config.js` | Firebase initialisation (fill in your config) |
 | `style.css` | Shared dark glassmorphism styles |
 | `.nojekyll` | Disables Jekyll processing on GitHub Pages |
+
+## Development and AI assistance
+
+Small learning or experimental project developed with AI assistance. The default-branch history includes contributions explicitly attributed to GitHub Copilot ([example](https://github.com/ProfessorEngineergit/things_I_wish_for/commit/6edb7a3cb4a1e82a9d195a189210be3460d6d915)). This documents AI involvement in those contributions; it does not establish the origin of every line or independent validation. Existing author, co-author and session records are retained.
