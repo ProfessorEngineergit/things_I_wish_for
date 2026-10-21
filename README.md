@@ -5,22 +5,22 @@ Public visitors see the wishes I have marked as public. I can log in with Google
 
 ## Features
 
-- 🌐 **Public landing page** (`index.html`) – about section, link to [my portfolio](https://professorengineergit.github.io/Bahrian_Novotny_My_Universe/), and the public wish grid
-- 🔐 **Google Sign-In** – single sign-in button; only the authenticated owner can manage wishes
-- 🛠️ **Admin page** (`admin.html`) – add / edit / delete wishes; toggle each wish between *public* and *private*
-- 🔥 **Firebase Firestore** – wishes are stored in the cloud; the public page loads only wishes marked `isPublic: true`
+- 🌐 **Public landing page** (`index.html`) - about section, link to [my portfolio](https://professorengineergit.github.io/Bahrian_Novotny_My_Universe/), and the public wish grid
+- 🔐 **Google Sign-In** - single sign-in button; only the authenticated owner can manage wishes
+- 🛠️ **Admin page** (`admin.html`) - add / edit / delete wishes; toggle each wish between *public* and *private*
+- 🔥 **Firebase Firestore** - wishes are stored in the cloud; the public page loads only wishes marked `isPublic: true`
 - 🎨 Dark glassmorphism design matching my portfolio
 
 ## Setup
 
-### 1 – Firebase project
+### 1 - Firebase project
 
 1. Go to [console.firebase.google.com](https://console.firebase.google.com) and create a new project.
 2. Enable **Google** as a sign-in provider under *Authentication → Sign-in method*.
 3. Create a **Firestore** database in *production mode*.
 4. Add the domain `professorengineergit.github.io` to the *Authorised domains* list under *Authentication → Settings*.
 
-### 2 – Firestore security rules
+### 2 - Firestore security rules
 
 Paste the following rules in *Firestore → Rules*:
 
@@ -41,7 +41,7 @@ service cloud.firestore {
 
 Replace `YOUR_FIREBASE_UID` with your Google account's Firebase UID (visible in *Authentication → Users*).
 
-### 3 – Firebase config
+### 3 - Firebase config
 
 Open `firebase-config.js` and replace every placeholder value with the actual values from *Firebase Console → Project Settings → Your apps → Web app → SDK setup and configuration*:
 
@@ -56,7 +56,7 @@ const firebaseConfig = {
 };
 ```
 
-### 4 – GitHub Pages
+### 4 - GitHub Pages
 
 In *Repository Settings → Pages*, set the source to **Deploy from branch → main → / (root)**.  
 The site will be published at `https://professorengineergit.github.io/things_I_wish_for/`.
@@ -71,6 +71,6 @@ The site will be published at `https://professorengineergit.github.io/things_I_w
 | `style.css` | Shared dark glassmorphism styles |
 | `.nojekyll` | Disables Jekyll processing on GitHub Pages |
 
-## Development and AI assistance
+## AI assistance
 
-Small learning or experimental project developed with AI assistance. The default-branch history includes contributions explicitly attributed to GitHub Copilot ([example](https://github.com/ProfessorEngineergit/things_I_wish_for/commit/6edb7a3cb4a1e82a9d195a189210be3460d6d915)). This documents AI involvement in those contributions; it does not establish the origin of every line or independent validation. Existing author, co-author and session records are retained.
+Some code contributions are explicitly attributed to AI tools: [GitHub Copilot](https://github.com/ProfessorEngineergit/things_I_wish_for/commit/e106396fd4cb71a511c444a018eee70b5f322816). This applies to those contributions, not every file.
